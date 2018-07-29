@@ -74,7 +74,7 @@ class KamonMetricsReporter extends MetricsReporter {
 
   override def configure(configs: util.Map[String, _]): Unit = {
     val interval =
-      Option(configs.get(reportInterval)).flatMap(v => Try(v.toString.toInt).toOption).getOrElse(defaultReportInterval)
+      Option(configs.get(reportInterval)).flatMap(v => Try(v.toString.toLong).toOption).getOrElse(defaultReportInterval)
     updater.set(Some(Kamon.scheduler().scheduleAtFixedRate(doUpdate, interval, interval, TimeUnit.MILLISECONDS)))
   }
 
