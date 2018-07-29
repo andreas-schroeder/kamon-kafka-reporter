@@ -1,7 +1,7 @@
 # Kamon Kafka Metric Reporter
 
-[![Build Status](https://travis-ci.org/andreas-schroeder/redisks.svg?branch=master)](https://travis-ci.org/andreas-schroeder/redisks)
-[![Download](https://api.bintray.com/packages/and-schroeder/maven/redisks/images/download.svg) ](https://bintray.com/and-schroeder/maven/redisks/_latestVersion)
+[![Build Status](https://travis-ci.org/andreas-schroeder/kamon-kafka-reporter.svg?branch=master)](https://travis-ci.org/andreas-schroeder/kamon-kafka-reporter)
+[![Download](https://api.bintray.com/packages/and-schroeder/maven/kamon-kafka-reporter/images/download.svg)](https://bintray.com/and-schroeder/maven/kamon-kafka-reporter/_latestVersion)
 
 MetricReporter that forwards Kafka metrics to Kamon.
 
