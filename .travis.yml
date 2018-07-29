@@ -1,6 +1,6 @@
 language: scala
 scala:
-   - 2.12.3
+   - 2.12.6
 
 before_cache:
   - rm -f  $HOME/.gradle/caches/modules-2/modules-2.lock
