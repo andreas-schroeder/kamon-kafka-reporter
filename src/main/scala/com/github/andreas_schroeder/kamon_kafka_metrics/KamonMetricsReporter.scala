@@ -4,9 +4,9 @@ import java.util
 import java.util.concurrent.atomic.AtomicReference
 import java.util.concurrent.{ScheduledFuture, TimeUnit}
 
-import com.github.andreas_schroeder.kamon_kafka_metrics.KamonMetricsReporter._
+import com.github.andreas_schroeder.kamon_kafka_metrics.KamonMetricsReporter.{MetricBridge, _}
 import kamon.Kamon
-import kamon.metric.{Counter, Gauge}
+import kamon.metric.{Counter, Gauge, Metric}
 import org.apache.kafka.common.metrics.stats.Total
 import org.apache.kafka.common.metrics.{KafkaMetric, MetricsReporter}
 
@@ -25,10 +25,13 @@ class KamonMetricsReporter extends MetricsReporter {
       val tags       = mn.tags
       val metricName = kamonName(metric)
       val bridge =
-        if (countMetric(metric))
-          new CounterBridge(metric, Kamon.counter(metricName).refine(tags))
-        else
-          new GaugeBridge(metric, Kamon.gauge(metricName).refine(tags), factor(metricName))
+        if (countMetric(metric)) {
+          val counter = Kamon.counter(metricName)
+          new CounterBridge(metric, counter, counter.refine(tags))
+        } else {
+          val gauge = Kamon.gauge(metricName)
+          new GaugeBridge(metric, gauge, gauge.refine(tags), factor(metricName))
+        }
 
       metrics.getAndUpdate((l: List[MetricBridge]) => bridge +: l)
     }
@@ -42,26 +45,22 @@ class KamonMetricsReporter extends MetricsReporter {
   }
 
   override def metricRemoval(metric: KafkaMetric): Unit = {
-    metrics.getAndUpdate((l: List[MetricBridge]) => l.filterNot(_.kafkaMetric == metric))
-    if (countMetric(metric)) {
-      Kamon.counter(kamonName(metric)).remove(metric.metricName.tags)
-    } else {
-      Kamon.gauge(kamonName(metric)).remove(metric.metricName.tags)
-    }
+    val oldMetrics = metrics.getAndUpdate((l: List[MetricBridge]) => l.filterNot(_.kafkaMetric == metric))
+    oldMetrics.find(_.kafkaMetric == metric).foreach(_.remove())
   }
 
   def kamonName(metric: KafkaMetric): String = {
     val mn = metric.metricName
     // adjust for Prometheus convention
     s"${mn.group}_${mn.name}".replaceAll("-", "_") match {
-      case n if n.endsWith("_rate")  => n + "_per_ns"
+      case n if n.endsWith("_rate")  => n + "_x_10"
       case n if n.endsWith("_ratio") => n + "_per_mil"
       case n                         => n
     }
   }
 
   def factor(metricName: String): Double =
-    if (metricName.endsWith("_per_ns")) nanosecondsFactor
+    if (metricName.endsWith("_rate_x_10")) 10.0
     else if (metricName.endsWith("_per_mil")) permilFactor
     else 1.0
 
@@ -82,8 +81,6 @@ class KamonMetricsReporter extends MetricsReporter {
 
   private val doUpdate: Runnable = () => metrics.get().foreach(_.update())
 
-  private val nanosecondsFactor: Double = 1.0 * 1.second.toNanos
-
   private val permilFactor: Double = 1000.0
 
   KamonMetricsReporter.instance.set(this)
@@ -100,23 +97,28 @@ object KamonMetricsReporter {
     */
   val instance: AtomicReference[KamonMetricsReporter] = new AtomicReference[KamonMetricsReporter]()
 
-  trait MetricBridge {
-    val kafkaMetric: KafkaMetric
+  abstract class MetricBridge(val kafkaMetric: KafkaMetric, kamonMetric: Metric[_]) {
+    val tags: util.Map[String, String] = new util.HashMap[String, String](kafkaMetric.metricName.tags)
+
+    def remove(): Unit = kamonMetric.remove(tags)
+
     def metricValue: Long
     def update(): Unit
   }
 
-  class GaugeBridge(val kafkaMetric: KafkaMetric, kamonMetric: Gauge, factor: Double = 1.0) extends MetricBridge {
+  class GaugeBridge(kafkaMetric: KafkaMetric, kamonMetric: Metric[_], gauge: Gauge, factor: Double = 1.0)
+      extends MetricBridge(kafkaMetric, kamonMetric) {
 
     override def metricValue: Long = kafkaMetric.metricValue match {
       case d: java.lang.Double => (d * factor).toLong
       case _                   => 0L
     }
 
-    override def update(): Unit = kamonMetric.set(metricValue)
+    override def update(): Unit = gauge.set(metricValue)
   }
 
-  class CounterBridge(val kafkaMetric: KafkaMetric, kamonMetric: Counter) extends MetricBridge {
+  class CounterBridge(kafkaMetric: KafkaMetric, kamonMetric: Metric[_], counter: Counter)
+      extends MetricBridge(kafkaMetric, kamonMetric) {
 
     var last: Long = 0
 
@@ -127,7 +129,7 @@ object KamonMetricsReporter {
 
     override def update(): Unit = {
       val newValue = metricValue
-      kamonMetric.increment(newValue - last)
+      counter.increment(newValue - last)
       last = newValue
     }
   }
