@@ -53,14 +53,14 @@ class KamonMetricsReporter extends MetricsReporter {
     val mn = metric.metricName
     // adjust for Prometheus convention
     s"${mn.group}_${mn.name}".replaceAll("-", "_") match {
-      case n if n.endsWith("_rate")  => n + "_x_10"
+      case n if n.endsWith("_rate")  => n + "_x10"
       case n if n.endsWith("_ratio") => n + "_per_mil"
       case n                         => n
     }
   }
 
   def factor(metricName: String): Double =
-    if (metricName.endsWith("_rate_x_10")) 10.0
+    if (metricName.endsWith("_rate_x10")) 10.0
     else if (metricName.endsWith("_per_mil")) permilFactor
     else 1.0
 
