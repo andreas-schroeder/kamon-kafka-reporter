@@ -15,7 +15,7 @@ import org.scalatest.{FeatureSpec, GivenWhenThen, MustMatchers}
 import scala.collection.JavaConverters._
 
 class KamonKafkaReporterAcceptanceSpec
-    extends FeatureSpec
+  extends FeatureSpec
     with MustMatchers
     with GivenWhenThen
     with EmbeddedKafka
